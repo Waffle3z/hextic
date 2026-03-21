@@ -1,7 +1,7 @@
 // Game State Management
 
 // DOM elements - accessed after DOM is loaded (scripts are at end of body)
-let canvas, ctx, playerIndicator, headerPlayer, headerPlayerContainer, moveHistory, restartBtn, prevBtn, nextBtn, coordsBtn, cpuBtn, threatsBtn, rulesToggle, autoMoveBtn;
+let canvas, ctx, playerIndicator, headerPlayer, headerPlayerContainer, moveHistory, restartBtn, prevBtn, nextBtn, coordsBtn, cpuBtn, threatsBtn, rulesToggle, autoMoveBtn, copyBtn, pasteBtn, menuBtn, hamburgerMenu;
 
 // Initialize DOM elements - should be called after DOM is ready
 function initDOMElements() {
@@ -19,6 +19,10 @@ function initDOMElements() {
     threatsBtn = document.getElementById('threats-btn');
     rulesToggle = document.getElementById('rules-toggle');
     autoMoveBtn = document.getElementById('auto-move-btn');
+    copyBtn = document.getElementById('copy-btn');
+    pasteBtn = document.getElementById('paste-btn');
+    menuBtn = document.getElementById('menu-btn');
+    hamburgerMenu = document.getElementById('hamburger-menu');
     
     // Validate all required elements exist
     if (!canvas || !ctx) {
@@ -87,9 +91,6 @@ function resetGameState() {
     hoverState.hex = null;
     hoverState.isHovering = false;
     
-    viewState.offsetX = 0;
-    viewState.offsetY = 0;
-    viewState.zoom = 1;
     viewState.isDragging = false;
     viewState.dragStartX = 0;
     viewState.dragStartY = 0;
@@ -97,8 +98,6 @@ function resetGameState() {
     viewState.offsetStartY = 0;
     viewState.touchStartX = null;
     viewState.touchStartY = null;
-    viewState.showCoordinates = true;
-    // Don't reset showThreats - preserve user's toggle preference
 }
 
 // Get hex key string
@@ -156,6 +155,10 @@ if (typeof window !== 'undefined') {
     Object.defineProperty(window, 'cpuBtn', { get: () => cpuBtn, configurable: true });
     Object.defineProperty(window, 'threatsBtn', { get: () => threatsBtn, configurable: true });
     Object.defineProperty(window, 'autoMoveBtn', { get: () => autoMoveBtn, configurable: true });
+    Object.defineProperty(window, 'copyBtn', { get: () => copyBtn, configurable: true });
+    Object.defineProperty(window, 'pasteBtn', { get: () => pasteBtn, configurable: true });
+    Object.defineProperty(window, 'menuBtn', { get: () => menuBtn, configurable: true });
+    Object.defineProperty(window, 'hamburgerMenu', { get: () => hamburgerMenu, configurable: true });
     Object.defineProperty(window, 'autoMoveState', { get: () => autoMoveState, configurable: true });
     Object.defineProperty(window, 'gameState', { get: () => gameState, configurable: true });
     Object.defineProperty(window, 'hoverState', { get: () => hoverState, configurable: true });

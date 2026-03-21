@@ -118,6 +118,7 @@ header h1 {
     overflow: hidden;
     display: flex;
     flex-direction: column;
+    position: relative;
 }
 
 .history-panel h3 {
@@ -132,6 +133,7 @@ header h1 {
     justify-content: space-between;
     gap: 8px;
     margin-bottom: 8px;
+    position: relative;
 }
 
 .move-list {
@@ -238,6 +240,16 @@ header h1 {
     font-size: 0.8rem;
     padding: 4px 8px;
     opacity: 0.5;
+    background: rgba(255, 255, 255, 0.1);
+    border: none;
+    color: #fff;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: opacity 0.2s, background 0.2s;
+}
+
+.toggle-btn:hover {
+    opacity: 0.7;
 }
 
 .toggle-btn.active {
@@ -260,21 +272,72 @@ header h1 {
     text-align: center;
 }
 
-/* Restart button - icon only */
-#restart-btn.restart {
+/* Icon button - transparent background */
+.icon-btn {
     background: transparent;
     border: none;
     color: #888;
     padding: 4px 8px;
-    font-size: 1rem;
+    font-size: 0.9rem;
     border-radius: 4px;
     cursor: pointer;
     transition: background 0.2s, color 0.2s;
 }
 
-#restart-btn.restart:hover {
+.icon-btn:hover:not(:disabled) {
     background: rgba(255, 255, 255, 0.1);
+}
+
+.icon-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+/* Restart button - red on hover */
+#restart-btn.icon-btn:hover {
     color: #e74c3c;
+}
+
+/* Hamburger menu */
+.hamburger-menu {
+    position: absolute;
+    background: rgba(30, 30, 50, 0.95);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 8px;
+    padding: 8px;
+    z-index: 100;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    right: 0;
+    top: 100%;
+    margin-top: 4px;
+    min-width: 120px;
+}
+
+.hamburger-menu.hidden {
+    display: none;
+}
+
+.hamburger-menu .icon-btn {
+    text-align: left;
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 8px;
+}
+
+.hamburger-menu .icon {
+    display: inline-block;
+    vertical-align: middle;
+    width: 24px;
+    text-align: center;
+}
+
+#menu-btn {
+    margin-left: auto;
+    position: relative;
 }
 
 /* CPU button */

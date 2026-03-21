@@ -97,7 +97,7 @@ function scoreHex(q, r, cpuPlayer) {
         if (analysis.valid) {
             // evaluation heuristic
             score += analysis.opponentCount;
-            score += analysis.cpuCount * 0.5;
+            score += analysis.cpuCount * 0.9;
             if (analysis.opponentCount == 0) score += 0.1;
         }
     }

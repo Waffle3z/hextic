@@ -46,10 +46,72 @@ function screenToHex(screenX, screenY, offsetX, offsetY, zoom) {
     return pixelToHex(worldX, worldY, zoom);
 }
 
+// =============================================================================
+// Pairing Functions for Coordinate Serialization
+// =============================================================================
+// These functions convert between hex coordinates (q, r) and natural numbers
+// using the Szudzik pairing function.
+
+// Convert an integer (which can be negative) to a natural number (non-negative)
+// This is a bijection: Z -> N
+function intToNat(x) {
+    return x > 0 ? x * 2 - 1 : x * -2;
+}
+
+// Convert a natural number back to an integer
+// This is the inverse of intToNat: N -> Z
+function intFromNat(x) {
+    return x % 2 === 1 ? (x + 1) / 2 : x / -2;
+}
+
+// Pair two natural numbers into a single natural number
+// This is a bijection: N x N -> N
+// Uses the Cantor pairing function variant for efficiency
+function pair(x, y) {
+    // Ensure non-negative inputs
+    x = Math.max(0, Math.floor(x));
+    y = Math.max(0, Math.floor(y));
+    return x >= y ? x * x + x + y : y * y + x;
+}
+
+// Unpair a natural number into two natural numbers
+// This is the inverse of pair: N -> N x N
+// Returns [x, y]
+function unpair(z) {
+    z = Math.max(0, Math.floor(z));
+    const w = Math.floor(Math.sqrt(z));
+    const t = w * w;
+    return z - t < w ? [z - t, w] : [w, z - t - w];
+}
+
+// Convert hex coordinates (q, r) to a natural number
+// This encodes both q and r into a single natural number
+function hexToNat(q, r) {
+    const natQ = intToNat(q);
+    const natR = intToNat(r);
+    return pair(natQ, natR);
+}
+
+// Convert a natural number back to hex coordinates (q, r)
+// Returns { q, r }
+function natToHex(nat) {
+    const [natQ, natR] = unpair(nat);
+    return {
+        q: intFromNat(natQ),
+        r: intFromNat(natR)
+    };
+}
+
 // Export to browser window
 if (typeof window !== 'undefined') {
     window.hexToPixel = hexToPixel;
     window.pixelToHex = pixelToHex;
     window.hexRound = hexRound;
     window.screenToHex = screenToHex;
+    window.intToNat = intToNat;
+    window.intFromNat = intFromNat;
+    window.pair = pair;
+    window.unpair = unpair;
+    window.hexToNat = hexToNat;
+    window.natToHex = natToHex;
 }

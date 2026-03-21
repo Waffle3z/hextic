@@ -8,6 +8,15 @@ function setupEventListeners() {
     
     window.addEventListener('resize', resizeCanvas);
     
+    // Keyboard shortcuts
+    window.addEventListener('keydown', handleKeyDown);
+    
+    // Handle paste to avoid paste context menu
+    document.addEventListener('paste', (e) => {
+        e.preventDefault();
+        pasteGameTreeFromClipboard();
+    });
+    
     // Mouse events for canvas
     canvas.addEventListener('mousedown', handleMouseDown);
     canvas.addEventListener('mousemove', handleMouseMove);
@@ -20,8 +29,8 @@ function setupEventListeners() {
     canvas.addEventListener('touchmove', handleTouchMove);
     canvas.addEventListener('touchend', handleTouchEnd);
     
-    // Restart button
-    if (restartBtn) restartBtn.addEventListener('click', restartGame);
+    // Prevent context menu (including paste option) on canvas
+    canvas.addEventListener('contextmenu', (e) => e.preventDefault());
     
     // Navigation buttons
     if (prevBtn) prevBtn.addEventListener('click', goToPreviousMove);
@@ -38,6 +47,56 @@ function setupEventListeners() {
     
     // Auto-move toggle button
     if (autoMoveBtn) autoMoveBtn.addEventListener('click', toggleAutoMove);
+    
+    // Copy/Paste buttons
+    if (copyBtn) copyBtn.addEventListener('click', handleCopyClick);
+    if (pasteBtn) pasteBtn.addEventListener('click', handlePasteClick);
+    
+    // Hamburger menu
+    if (menuBtn) menuBtn.addEventListener('click', toggleHamburgerMenu);
+    if (restartBtn) restartBtn.addEventListener('click', handleRestartClick);
+    if (pasteBtn) {
+        pasteBtn.addEventListener('click', handlePasteClick);
+    }
+    if (hamburgerMenu) {
+        hamburgerMenu.addEventListener('contextmenu', (e) => e.preventDefault());
+    }
+    
+    // Close hamburger menu when clicking outside
+    document.addEventListener('click', (e) => {
+        if (hamburgerMenu && hamburgerMenu.classList.contains('hidden') === false) {
+            if (!hamburgerMenu.contains(e.target) && !menuBtn.contains(e.target)) {
+                hamburgerMenu.classList.add('hidden');
+            }
+        }
+    });
+    
+    // Prevent context menu on hamburger menu items
+    if (hamburgerMenu) {
+        hamburgerMenu.addEventListener('contextmenu', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+        });
+    }
+    
+    // Also close when clicking menu button again
+    if (menuBtn) {
+        menuBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+        });
+    }
+}
+
+// Handle keyboard shortcuts
+function handleKeyDown(e) {
+    // Ctrl+C: Copy game tree to clipboard
+    if (e.ctrlKey && e.key === 'c') {
+        e.preventDefault();
+        copyGameTreeToClipboard();
+        return;
+    }
+    
+
 }
 
 // Mouse event handlers
@@ -316,6 +375,34 @@ function toggleAutoMove() {
     }
 }
 
+// Handle copy button click
+function handleCopyClick() {
+    copyGameTreeToClipboard();
+    toggleHamburgerMenu();
+}
+
+// Handle paste button click
+function handlePasteClick(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    hamburgerMenu.classList.add('hidden');
+    pasteGameTreeFromClipboard();
+    return false;
+}
+
+// Handle restart button in hamburger menu
+function handleRestartClick() {
+    restartGame();
+    toggleHamburgerMenu();
+}
+
+// Toggle hamburger menu
+function toggleHamburgerMenu() {
+    if (hamburgerMenu) {
+        hamburgerMenu.classList.toggle('hidden');
+    }
+}
+
 // Update auto-move button appearance
 function updateAutoMoveButton() {
     if (!autoMoveBtn) return;
@@ -350,6 +437,7 @@ function checkAndAutoMove() {
 // Export to browser window
 if (typeof window !== 'undefined') {
     window.setupEventListeners = setupEventListeners;
+    window.handleKeyDown = handleKeyDown;
     window.handleMouseDown = handleMouseDown;
     window.handleMouseMove = handleMouseMove;
     window.handleMouseUp = handleMouseUp;
@@ -367,4 +455,8 @@ if (typeof window !== 'undefined') {
     window.toggleAutoMove = toggleAutoMove;
     window.checkAndAutoMove = checkAndAutoMove;
     window.updateAutoMoveButton = updateAutoMoveButton;
+    window.handleCopyClick = handleCopyClick;
+    window.handlePasteClick = handlePasteClick;
+    window.handleRestartClick = handleRestartClick;
+    window.toggleHamburgerMenu = toggleHamburgerMenu;
 }

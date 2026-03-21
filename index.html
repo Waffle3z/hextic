@@ -29,17 +29,22 @@
                     <div class="history-header">
                         <h3>Move History</h3>
                         <div class="history-controls-top">
-                            <button id="prev-btn" class="nav-btn" title="Previous Move">◀</button>
-                            <button id="next-btn" class="nav-btn" title="Next Move">▶</button>
-                            <button id="restart-btn" class="nav-btn restart" title="Reset Game">↺</button>
+                            <button id="prev-btn" class="icon-btn" title="Previous Move">◀</button>
+                            <button id="next-btn" class="icon-btn" title="Next Move">▶</button>
+                            <button id="menu-btn" class="icon-btn" title="Menu">☰</button>
+                        </div>
+                        <div id="hamburger-menu" class="hamburger-menu hidden">
+                            <button id="restart-btn" class="icon-btn" title="Reset Game"><span class="icon">↺</span> Reset</button>
+                            <button id="copy-btn" class="icon-btn" title="Copy (Ctrl+C)"><span class="icon">📋</span> Copy</button>
+                            <button id="paste-btn" class="icon-btn" title="Paste (Ctrl+V)"><span class="icon">📥</span> Paste</button>
                         </div>
                     </div>
                     <div id="move-history" class="move-list"></div>
                     <div class="history-controls-bottom">
-                        <button id="coords-btn" class="nav-btn toggle-btn active" title="Toggle Coordinates">q,r</button>
-                        <button id="threats-btn" class="nav-btn toggle-btn active" title="Toggle Threat Warnings">!</button>
+                        <button id="coords-btn" class="toggle-btn active" title="Toggle Coordinates">q,r</button>
+                        <button id="threats-btn" class="toggle-btn active" title="Toggle Threat Warnings">!</button>
                         <button id="cpu-btn" class="nav-btn cpu" title="CPU Move">🤖</button>
-                        <button id="auto-move-btn" class="nav-btn toggle-btn" title="Auto Move Toggle">Auto</button>
+                        <button id="auto-move-btn" class="toggle-btn" title="Auto Move Toggle">Auto</button>
                     </div>
                 </div>
                 
@@ -65,6 +70,7 @@
     <script src="constants.js"></script>
     <script src="state.js"></script>
     <script src="hex-utils.js"></script>
+    <script src="clipboard.js"></script>
     <script src="game-logic.js"></script>
     <script src="cpu-player.js"></script>
     <script src="history.js"></script>
