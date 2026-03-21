@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hexagonal Tic-Tac-Toe</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="header-player-container">
+                <span id="header-player"></span>
+            </div>
+            <h1>Hexagonal Tic-Tac-Toe</h1>
+            <button id="rules-toggle" class="nav-btn rules-toggle" title="Show Rules">?</button>
+        </header>
+        
+        <div class="game-area">
+            <div class="game-info">
+                <div class="status-panel">
+                    <div class="current-player">
+                        <span>Current Player: </span>
+                        <span id="player-indicator" class="player-1">Player 1</span>
+                    </div>
+                </div>
+                
+                <div class="history-panel">
+                    <div class="history-header">
+                        <h3>Move History</h3>
+                        <div class="history-controls-top">
+                            <button id="prev-btn" class="nav-btn" title="Previous Move">◀</button>
+                            <button id="next-btn" class="nav-btn" title="Next Move">▶</button>
+                            <button id="restart-btn" class="nav-btn restart" title="Reset Game">↺</button>
+                        </div>
+                    </div>
+                    <div id="move-history" class="move-list"></div>
+                    <div class="history-controls-bottom">
+                        <button id="coords-btn" class="nav-btn toggle-btn active" title="Toggle Coordinates">q,r</button>
+                        <button id="threats-btn" class="nav-btn toggle-btn active" title="Toggle Threat Warnings">!</button>
+                        <button id="cpu-btn" class="nav-btn cpu" title="CPU Move">🤖</button>
+                        <button id="auto-move-btn" class="nav-btn toggle-btn" title="Auto Move Toggle">Auto</button>
+                    </div>
+                </div>
+                
+                <div class="rules">
+                    <h3>Rules</h3>
+                    <ul>
+                        <li>Player 1 places at center (0,0) first</li>
+                        <li>Then both players take turns placing 2 tiles</li>
+                        <li>First to connect 6 in a row wins!</li>
+                        <li>Pan: Click and drag</li>
+                        <li>Zoom: Mouse wheel</li>
+                        <li>History: Click moves to review</li>
+                    </ul>
+                </div>
+            </div>
+            
+            <div class="canvas-container">
+                <canvas id="game-canvas"></canvas>
+            </div>
+        </div>
+    </div>
+    
+    <script src="constants.js"></script>
+    <script src="state.js"></script>
+    <script src="hex-utils.js"></script>
+    <script src="game-logic.js"></script>
+    <script src="cpu-player.js"></script>
+    <script src="history.js"></script>
+    <script src="input.js"></script>
+    <script src="renderer.js"></script>
+    <script src="ui.js"></script>
+</body>
+</html>
