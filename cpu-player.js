@@ -1,368 +1,380 @@
 // CPU Player Logic
 
-// Get all "witnessed" hexes - empty hexes that are:
-// 1. Within distance <6 of any nonempty cell
-// 2. In a line (direction) that contains another nonempty cell
-function getWitnessedHexes() {
-    const witnessed = new Set();
-    const WITNESS_DISTANCE = 6;
-    
-    // For each nonempty cell, check all 6 directions
-    for (const [key, tile] of gameState.tiles) {
-        const [q, r] = key.split(',').map(Number);
-        
-        // Check each direction from this nonempty cell
-        for (const dir of window.HEX_DIRECTIONS) {
-            // Go up to WITNESS_DISTANCE-1 cells in this direction
-            for (let dist = 1; dist < WITNESS_DISTANCE; dist++) {
-                const targetQ = q + dir.q * dist;
-                const targetR = r + dir.r * dist;
-                
-                // Only add if it's empty and within render horizon
-                if (isHexEmpty(targetQ, targetR) && isInRenderHorizon(targetQ, targetR)) {
-                    witnessed.add(getHexKey(targetQ, targetR));
-                }
-            }
-        }
-    }
-    
-    return Array.from(witnessed).map(key => {
-        const [q, r] = key.split(',').map(Number);
-        return { q, r };
-    });
+// Get all lines of 6 that intersect a given hex (using custom tile map)
+function getLinesIntersectingHex(q, r, tiles) {
+	const lines = [];
+	const checkedWindows = new Set();
+	
+	for (const dir of window.HEX_DIRECTIONS) {
+		const fullLine = buildLineWithTiles(tiles, q, r, dir.q, dir.r);
+		
+		if (fullLine.length < window.WINNING_LENGTH) continue;
+		
+		for (let i = 0; i <= fullLine.length - window.WINNING_LENGTH; i++) {
+			const hexWindow = fullLine.slice(i, i + window.WINNING_LENGTH);
+			
+			const containsTarget = hexWindow.some(h => h.q === q && h.r === r);
+			if (!containsTarget) continue;
+			
+			const first = hexWindow[0];
+			const last = hexWindow[window.WINNING_LENGTH - 1];
+			const lineKey = `${first.q},${first.r}-${last.q},${last.r}`;
+			
+			if (checkedWindows.has(lineKey)) continue;
+			checkedWindows.add(lineKey);
+			
+			lines.push(hexWindow.map(h => ({ q: h.q, r: h.r })));
+		}
+	}
+	
+	return lines;
 }
 
-// Get all lines of 6 that intersect a given hex
-function getLinesIntersectingHex(q, r) {
-    const lines = [];
-    
-    // Check all 6 directions - each direction defines a line through the hex
-    for (const dir of window.HEX_DIRECTIONS) {
-        // Build a complete line in this direction using the existing buildLine function
-        // This creates a line of WINNING_LENGTH*2 = 12 hexes
-        const fullLine = window.buildLine(q, r, dir.q, dir.r);
-        
-        if (fullLine.length < window.WINNING_LENGTH) continue;
-        
-        // Check all sliding windows of WINNING_LENGTH hexes
-        for (let i = 0; i <= fullLine.length - window.WINNING_LENGTH; i++) {
-            const hexWindow = fullLine.slice(i, i + window.WINNING_LENGTH);
-            
-            // Check if this window contains the target hex
-            const containsTarget = hexWindow.some(h => h.q === q && h.r === r);
-            if (containsTarget) {
-                // Convert to simple {q, r} format (without tile property)
-                lines.push(hexWindow.map(h => ({ q: h.q, r: h.r })));
-            }
-        }
-    }
-    
-    return lines;
-}
-
-// Check if a line is valid (doesn't have cells belonging to both players)
-// Returns: { valid: boolean, cpuCount: number, emptyCount: number }
-function analyzeLine(line, cpuPlayer) {
-    const opponentPlayer = cpuPlayer === 1 ? 2 : 1;
-    
-    let cpuCount = 0;
-    let opponentCount = 0;
-    let emptyCount = 0;
-    
-    for (const hex of line) {
-        const tile = gameState.tiles.get(getHexKey(hex.q, hex.r));
-        if (tile === cpuPlayer) {
-            cpuCount++;
-        } else if (tile === opponentPlayer) {
-            opponentCount++;
-        } else {
-            emptyCount++;
-        }
-    }
-    
-    // Line is valid if it doesn't have cells from both players
-    const valid = (opponentCount === 0 || cpuCount === 0);
-    
-    return { valid, cpuCount, opponentCount, emptyCount };
-}
-
-// Score a hex based on all lines that intersect it
-function scoreHex(q, r, cpuPlayer) {
-    const lines = getLinesIntersectingHex(q, r);
-    let score = 0;
-    
-    for (const line of lines) {
-        const analysis = analyzeLine(line, cpuPlayer);
-        
-        if (analysis.valid) {
-            // evaluation heuristic
-            score += analysis.opponentCount;
-            score += analysis.cpuCount * 0.9;
-            if (analysis.opponentCount == 0) score += 0.1;
-        }
-    }
-    
-    return score;
-}
-
-// Simplified winning move detection using threat logic
 function findWinningMove(cpuPlayer) {
-    // Determine how many moves CPU has left this turn
-    const mod = gameState.moveCount % 4;
-    let cpuMovesLeft = 0;
-    
-    if (cpuPlayer === 1) {
-        cpuMovesLeft = (mod === 3) ? 2 : 1; // 3, 0
-    } else {
-        cpuMovesLeft = (mod === 1) ? 2 : 1; // 1, 2
-    }
-    
-    // Get CPU's threats using the existing checkThreat function
-    const threats = checkThreat();
-    const cpuThreats = cpuPlayer === 1 ? threats.player1 : threats.player2;
-    
-    // If CPU has 2 moves left:
-    // - Any threat (4+ tiles) means we can win in 2 moves
-    // If CPU has 1 move left:
-    // - Need a threat with 5 tiles to win immediately
-    if (cpuThreats && cpuThreats.length > 0) {
-        if (cpuMovesLeft >= 2) {
-            // Any threat means we can win - find a move that completes one
-            return findMoveToCompleteThreat(cpuPlayer, cpuThreats);
-        } else if (cpuMovesLeft === 1) {
-            // Only win if we have a threat with 5 tiles (immediate win)
-            for (const threatLine of cpuThreats) {
-                let cpuCount = 0;
-                for (const hex of threatLine) {
-                    const tile = gameState.tiles.get(getHexKey(hex.q, hex.r));
-                    if (tile === cpuPlayer) cpuCount++;
-                }
-                if (cpuCount >= 5) {
-                    return findMoveToCompleteThreat(cpuPlayer, cpuThreats);
-                }
-            }
-        }
-    }
-    
-    return null;
+	const movesLeft = getMovesLeftInTurn(cpuPlayer);
+	
+	const threats = checkThreat();
+	const cpuThreats = cpuPlayer === 1 ? threats.player1 : threats.player2;
+	
+	if (cpuThreats && cpuThreats.length > 0) {
+		if (movesLeft >= 2) {
+			return findMoveToCompleteThreat(cpuPlayer, cpuThreats);
+		} else if (movesLeft === 1) {
+			for (const threatLine of cpuThreats) {
+				let cpuCount = 0;
+				for (const hex of threatLine) {
+					const tile = gameState.tiles.get(getHexKey(hex.q, hex.r));
+					if (tile === cpuPlayer) cpuCount++;
+				}
+				if (cpuCount >= 5) {
+					return findMoveToCompleteThreat(cpuPlayer, cpuThreats);
+				}
+			}
+		}
+	}
+	
+	return null;
 }
 
-// Find a move that completes one of the CPU's threats
 function findMoveToCompleteThreat(cpuPlayer, cpuThreats) {
-    const witnessed = getWitnessedHexes();
-    
-    // First try to find an immediate win
-    for (const hex of witnessed) {
-        gameState.tiles.set(getHexKey(hex.q, hex.r), cpuPlayer);
-        const winningLine = checkWin(cpuPlayer);
-        gameState.tiles.delete(getHexKey(hex.q, hex.r));
-        
-        if (winningLine) {
-            return hex;
-        }
-    }
-    
-    // Otherwise find any empty cell in a threat line
-    for (const threatLine of cpuThreats) {
-        for (const hex of threatLine) {
-            if (isHexEmpty(hex.q, hex.r) && isInRenderHorizon(hex.q, hex.r)) {
-                return { q: hex.q, r: hex.r };
-            }
-        }
-    }
-    
-    return null;
+	const candidates = getMoveCandidates(gameState.tiles);
+	
+	for (const hex of candidates) {
+		gameState.tiles.set(getHexKey(hex.q, hex.r), cpuPlayer);
+		const winningLine = checkWin(cpuPlayer);
+		gameState.tiles.delete(getHexKey(hex.q, hex.r));
+		
+		if (winningLine) {
+			return hex;
+		}
+	}
+	
+	for (const threatLine of cpuThreats) {
+		for (const hex of threatLine) {
+			if (isHexEmpty(hex.q, hex.r)) {
+				return { q: hex.q, r: hex.r };
+			}
+		}
+	}
+	
+	return null;
 }
 
-// Check if opponent can win on their next turn (immediate threat)
-// Returns true if opponent has a line with 4+ tiles and can complete a win
-function checkOpponentCanWinNextTurn(player) {
-    // Check for any line where player has 4+ tiles (could win in 2 moves)
-    // or 5+ tiles (could win in 1 move)
-    for (const [key, tile] of gameState.tiles) {
-        if (tile !== player) continue;
-        
-        const [q, r] = key.split(',').map(Number);
-        
-        for (const dir of window.HEX_DIRECTIONS) {
-            const line = window.buildLine(q, r, dir.q, dir.r);
-            
-            if (line.length < window.WINNING_LENGTH) continue;
-            
-            for (let i = 0; i <= line.length - window.WINNING_LENGTH; i++) {
-                const hexWindow = line.slice(i, i + window.WINNING_LENGTH);
-                
-                // Skip empty lines
-                if (!hexWindow.some(h => h.tile !== undefined)) continue;
-                
-                let playerCount = 0;
-                let emptyCount = 0;
-                
-                for (const h of hexWindow) {
-                    if (h.tile === player) playerCount++;
-                    else if (h.tile === undefined) emptyCount++;
-                }
-                
-                // Player can win next turn with 5+ tiles and 1+ empty (1 move)
-                // Or with 4+ tiles and 2+ empty (2 moves - but we treat as threat)
-                if ((playerCount >= 5 && emptyCount >= 1) || 
-                    (playerCount >= 4 && emptyCount >= 2)) {
-                    return true;
-                }
-            }
-        }
-    }
-    
-    return false;
-}
-
-// Check for threats and find blocking moves - prefers blocking multiple threats
-function findBlockingMove(cpuPlayer, opponentPlayer) {
-    // Check for opponent's winning threats
-    const threats = checkThreat();
-    const opponentThreats = opponentPlayer === 1 ? threats.player1 : threats.player2;
-    
-    if (!opponentThreats || opponentThreats.length === 0) {
-        return null;
-    }
-    
-    // Collect all empty cells in all threat lines
-    const threatEmptyCells = new Map(); // key: "q,r" -> count of threats blocked
-    
-    for (const threatLine of opponentThreats) {
-        for (const hex of threatLine) {
-            const key = getHexKey(hex.q, hex.r);
-            // Only add if this hex is NOT occupied by either player
-            const tile = gameState.tiles.get(key);
-            if (tile === undefined) {
-                // This cell is empty and can be used to block
-                if (threatEmptyCells.has(key)) {
-                    threatEmptyCells.set(key, threatEmptyCells.get(key) + 1);
-                } else {
-                    threatEmptyCells.set(key, 1);
-                }
-            }
-            // If tile === cpuPlayer, we can't block there (already ours)
-            // If tile === opponentPlayer, they already have that cell
-        }
-    }
-    
-    // If no empty cells found in threat lines, we can't block
-    if (threatEmptyCells.size === 0) {
-        return null;
-    }
-    
-    // Find the empty cell that blocks the most threats
-    let bestBlocker = null;
-    let maxThreatsBlocked = 0;
-    
-    for (const [key, threatCount] of threatEmptyCells) {
-        const [q, r] = key.split(',').map(Number);
-        
-        if (threatCount > maxThreatsBlocked) {
-            maxThreatsBlocked = threatCount;
-            bestBlocker = { q, r };
-        }
-    }
-    
-    // Verify the best blocker is a valid empty cell
-    if (bestBlocker) {
-        const tile = gameState.tiles.get(getHexKey(bestBlocker.q, bestBlocker.r));
-        if (tile !== undefined) {
-            // Best blocker is not actually empty, search for any empty cell in threats
-            for (const [key] of threatEmptyCells) {
-                const [q, r] = key.split(',').map(Number);
-                const checkTile = gameState.tiles.get(getHexKey(q, r));
-                if (checkTile === undefined) {
-                    return { q, r };
-                }
-            }
-            return null;
-        }
-    }
-    
-    return bestBlocker;
-}
-
-// Main CPU move function
 function makeCPUMove() {
-    // Check if game is over
-    if (gameState.gamePhase === 'gameOver') {
-        return false;
-    }
-    
-    // If viewing a historical position, rebuild to that point first
-    if (moveHistoryTree.currentNode && moveHistoryTree.currentNode !== getLatestNode()) {
-        rebuildGameState(moveHistoryTree.currentNode);
-    }
-    
-    const cpuPlayer = getCurrentPlayer();
-    const opponentPlayer = cpuPlayer === 1 ? 2 : 1;
-    
-    // Special case: Initial phase - only center (0,0) is legal
-    if (gameState.gamePhase === 'initial') {
-        if (isHexEmpty(0, 0) && isInRenderHorizon(0, 0)) {
-            return handleTilePlacement(0, 0);
-        }
-        return false;
-    }
-    
-    // Priority 1: Check if CPU can win immediately
-    const winningMove = findWinningMove(cpuPlayer);
-    
-    if (winningMove) {
-        return handleTilePlacement(winningMove.q, winningMove.r);
-    }
-    
-    // Priority 2: Block opponent's winning move
-    // ALWAYS check for blocking when there's no winning move - this is critical!
-    // First check if opponent can win immediately
-    const opponentCanWinNow = checkOpponentCanWinNextTurn(opponentPlayer);
-    
-    // Also check threats using the standard threat detection
-    const threats = checkThreat();
-    const opponentThreats = opponentPlayer === 1 ? threats.player1 : threats.player2;
-    const hasThreats = opponentThreats && opponentThreats.length > 0;
-    
-    // Block if opponent can win NOW or if there are any detected threats
-    if (opponentCanWinNow || hasThreats) {
-        // Try primary blocking first
-        const blockingMove = findBlockingMove(cpuPlayer, opponentPlayer);
-        
-        if (blockingMove) {
-            return handleTilePlacement(blockingMove.q, blockingMove.r);
-        }
-    }
-    
-    // Priority 3: Evaluate all witnessed hexes and choose best score
-    const witnessed = getWitnessedHexes();
-    let bestScore = -1;
-    let bestHex = null;
-    
-    for (const hex of witnessed) {
-        const score = scoreHex(hex.q, hex.r, cpuPlayer);
-        
-        if (score > bestScore) {
-            bestScore = score;
-            bestHex = hex;
-        }
-    }
-    
-    if (bestHex) {
-        return handleTilePlacement(bestHex.q, bestHex.r);
-    }
-    
-    return false;
+	if (gameState.gamePhase === 'gameOver') {
+		return false;
+	}
+	
+	if (moveHistoryTree.currentNode && moveHistoryTree.currentNode !== getLatestNode()) {
+		rebuildGameState(moveHistoryTree.currentNode);
+	}
+	
+	const cpuPlayer = getCurrentPlayer();
+	const movesLeft = getMovesLeftInTurn(cpuPlayer);
+	
+	if (gameState.gamePhase === 'initial') {
+		if (isHexEmpty(0, 0)) {
+			return handleTilePlacement(0, 0);
+		}
+		return false;
+	}
+	
+	const winningMove = findWinningMove(cpuPlayer);
+	if (winningMove) {
+		return handleTilePlacement(winningMove.q, winningMove.r);
+	}
+	
+	const bestMovePair = findBestMovePair();
+	if (bestMovePair && bestMovePair.length > 0) {
+		for (let i = movesLeft == 2 ? 0 : 1; i < bestMovePair.length; i++) {
+			const move = bestMovePair[i];
+			handleTilePlacement(move.q, move.r, i == 0);
+		}
+		
+		return true;
+	}
+	
+	return false;
+}
+
+function evaluatePosition(tiles, player) {
+	const opponentPlayer = player === 1 ? 2 : 1;
+	const allLines = getAllLines(tiles);
+	
+	let playerScore = 0;
+	let opponentScore = 0;
+	
+	for (const line of allLines) {
+		const { player1Count, player2Count, player: linePlayer } = line;
+		if (linePlayer === 0) continue;
+		
+		const pCount = player === 1 ? player1Count : player2Count;
+		const oCount = player === 1 ? player2Count : player1Count;
+		
+		if (linePlayer === player) {
+			if (pCount >= 4) playerScore += 0.5;
+			else if (pCount === 3) playerScore += 0.3;
+			else if (pCount === 2) playerScore += 0.2;
+			if (pCount >= 1) playerScore += 0.1;
+		}
+		
+		if (linePlayer === opponentPlayer) {
+			if (oCount >= 4) opponentScore += 1000000;
+			else if (oCount === 3) { opponentScore += 3; }
+			else if (oCount === 2) { opponentScore += 2; }
+			if (oCount >= 1) opponentScore += 1;
+		}
+	}
+	
+	let isolatedOpponentPenalty = 0;
+	for (const [key, cellOwner] of tiles) {
+		if (cellOwner !== opponentPlayer) continue;
+		
+		const [q, r] = key.split(',').map(Number);
+		let hasAdjacentPlayer = false;
+		
+		for (const dir of window.HEX_DIRECTIONS) {
+			const neighborKey = getHexKey(q + dir.q, r + dir.r);
+			if (tiles.get(neighborKey) === player) {
+				hasAdjacentPlayer = true;
+				break;
+			}
+		}
+		
+		if (!hasAdjacentPlayer) {
+			isolatedOpponentPenalty += 3;
+		}
+	}
+	
+	return playerScore - opponentScore - isolatedOpponentPenalty;
+}
+
+// Check if a hex is inside any of the threat lines
+function isHexInThreatLine(hex, threats) {
+	if (!threats || threats.length === 0) {
+		return false;
+	}
+	
+	for (const threatLine of threats) {
+		for (const threatHex of threatLine) {
+			if (threatHex.q === hex.q && threatHex.r === hex.r) {
+				return true;
+			}
+		}
+	}
+	return false;
+}
+
+// Get all blocking moves (moves inside opponent threat lines)
+function getBlockingMoves(opponentThreats) {
+	const candidates = getMoveCandidates(gameState.tiles);
+	const blockingMoves = [];
+	
+	for (const move of candidates) {
+		if (isHexInThreatLine(move, opponentThreats)) {
+			blockingMoves.push(move);
+		}
+	}
+	
+	return blockingMoves;
+}
+
+// Find the best move pair according to heuristic positional evaluation
+// If first move in turn was already made, first move in pair is forced
+// Move pairs are order-agnostic (avoid duplicates where order is reversed)
+// Priority: Block opponent threats if they exist
+// Get opponent's most recent 2 moves (last 2 tiles placed by opponent)
+function getOpponentRecentMoves(opponentPlayer) {
+	const moves = [];
+	let node = moveHistoryTree.currentNode;
+	
+	// Traverse back to find opponent's moves
+	while (node && moves.length < 2) {
+		if (node.player === opponentPlayer) {
+			moves.unshift({ q: node.q, r: node.r }); // Add to front to get chronological order
+		}
+		node = node.parent;
+	}
+	
+	return moves;
+}
+
+// Get all candidate hexes: in lines containing opponent's recent moves + blocking moves for threats + preemptive moves
+function getRestrictedCandidates(tiles, opponentPlayer, cpuPlayer) {
+	const candidates = new Set();
+	
+	// 1. Get hexes in lines containing opponent's most recent 2 moves
+	const recentMoves = getOpponentRecentMoves(opponentPlayer);
+	for (const move of recentMoves) {
+		const lines = getLinesIntersectingHex(move.q, move.r, tiles);
+		for (const line of lines) {
+			for (const hex of line) {
+				if (!tiles.has(getHexKey(hex.q, hex.r))) {
+					candidates.add(getHexKey(hex.q, hex.r));
+				}
+			}
+		}
+	}
+	
+	// 2. Get blocking moves for any existing threats
+	const threats = checkThreat();
+	const opponentThreats = opponentPlayer === 1 ? threats.player1 : threats.player2;
+	if (opponentThreats && opponentThreats.length > 0) {
+		const blockingMoves = getBlockingMoves(opponentThreats);
+		for (const move of blockingMoves) {
+			candidates.add(getHexKey(move.q, move.r));
+		}
+	}
+	
+	// 3. Add empty hexes from CPU player's preemptive lines
+	const preemptiveLines = getPreemptiveLines(tiles, cpuPlayer);
+	for (const line of preemptiveLines) {
+		for (const hex of line.hexes) {
+			if (!tiles.has(getHexKey(hex.q, hex.r))) {
+				candidates.add(getHexKey(hex.q, hex.r));
+			}
+		}
+	}
+	
+	// Convert Set back to array of hex objects
+	const result = [];
+	for (const key of candidates) {
+		const [q, r] = key.split(',').map(Number);
+		result.push({ q, r });
+	}
+	
+	return result;
+}
+
+function findBestMovePair() {
+	const cpuPlayer = getCurrentPlayer();
+	const opponentPlayer = cpuPlayer === 1 ? 2 : 1;
+	const forcedFirstMove = getForcedFirstMove(cpuPlayer);
+	
+	// Use restricted candidate set instead of all possible moves
+	let candidates = getRestrictedCandidates(gameState.tiles, opponentPlayer, cpuPlayer);
+	
+	if (candidates.length === 0) {
+		// Fallback to all candidates if restricted set is empty
+		candidates = getMoveCandidates(gameState.tiles);
+	}
+	
+	if (candidates.length === 0) {
+		return null;
+	}
+	
+	// Check for opponent threats
+	const threats = checkThreat();
+	const opponentThreats = opponentPlayer === 1 ? threats.player1 : threats.player2;
+	const hasOpponentThreats = opponentThreats && opponentThreats.length > 0;
+	
+	// If there are opponent threats, first move must be a block
+	let firstMoveCandidates = candidates;
+	if (hasOpponentThreats) {
+		const blockingMoves = getBlockingMoves(opponentThreats);
+		if (blockingMoves.length > 0) {
+			firstMoveCandidates = blockingMoves;
+		}
+	}
+	
+	// Always return a pair - if only 1 move left, first is forced
+	if (forcedFirstMove) {
+		// First move is forced, find best second move
+		let bestSecond = null;
+		let bestScore = -Infinity;
+		
+		for (const move of candidates) {
+			if (move.q === forcedFirstMove.q && move.r === forcedFirstMove.r) continue;
+			
+			makeTempMove(gameState.tiles, move.q, move.r, cpuPlayer);
+			const score = evaluatePosition(gameState.tiles, cpuPlayer);
+			undoTempMove(gameState.tiles, move.q, move.r);
+			
+			if (score > bestScore) {
+				bestScore = score;
+				bestSecond = move;
+			}
+		}
+		
+		return [forcedFirstMove, bestSecond];
+	}
+	
+	// Two moves left - find best pair
+	let bestPair = null;
+	let bestScore = -Infinity;
+	
+	const evaluatedPairs = new Set();
+	
+	for (let i = 0; i < firstMoveCandidates.length; i++) {
+		const firstMove = firstMoveCandidates[i];
+		
+		// Apply first move
+		makeTempMove(gameState.tiles, firstMove.q, firstMove.r, cpuPlayer);
+		
+		// Calculate valid second move candidates based on remaining threats
+		let secondMoveCandidates = candidates;
+		if (hasOpponentThreats) {
+			const newThreats = checkThreat();
+			const newOpponentThreats = opponentPlayer === 1 ? newThreats.player1 : newThreats.player2;
+			if (newOpponentThreats && newOpponentThreats.length > 0) {
+				secondMoveCandidates = getBlockingMoves(newOpponentThreats);
+			}
+		}
+		
+		// Iterate over valid second move candidates only
+		for (let j = 0; j < secondMoveCandidates.length; j++) {
+			const secondMove = secondMoveCandidates[j];
+			
+			// Skip if first and second are the same
+			if (firstMove.q === secondMove.q && firstMove.r === secondMove.r) continue;
+			
+			// Create normalized key (sorted) to avoid reversed duplicates
+			const key1 = `${firstMove.q},${firstMove.r}`;
+			const key2 = `${secondMove.q},${secondMove.r}`;
+			const pairKey = key1 < key2 ? `${key1}-${key2}` : `${key2}-${key1}`;
+			
+			if (evaluatedPairs.has(pairKey)) continue;
+			evaluatedPairs.add(pairKey);
+			
+			makeTempMove(gameState.tiles, secondMove.q, secondMove.r, cpuPlayer);
+			
+			const score = evaluatePosition(gameState.tiles, cpuPlayer);
+			
+			undoTempMove(gameState.tiles, secondMove.q, secondMove.r);
+			
+			if (score > bestScore) {
+				bestScore = score;
+				bestPair = [firstMove, secondMove];
+			}
+		}
+		
+		undoTempMove(gameState.tiles, firstMove.q, firstMove.r);
+	}
+	
+	return bestPair;
 }
 
 // Export to browser window
 if (typeof window !== 'undefined') {
-    window.getWitnessedHexes = getWitnessedHexes;
-    window.getLinesIntersectingHex = getLinesIntersectingHex;
-    window.analyzeLine = analyzeLine;
-    window.scoreHex = scoreHex;
-    window.findWinningMove = findWinningMove;
-    window.findBlockingMove = findBlockingMove;
-    window.checkOpponentCanWinNextTurn = checkOpponentCanWinNextTurn;
-    window.makeCPUMove = makeCPUMove;
+	window.makeCPUMove = makeCPUMove;
 }
