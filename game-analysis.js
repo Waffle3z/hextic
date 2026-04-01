@@ -122,10 +122,10 @@ function getForcedFirstMove(cpuPlayer) {
 	const movesLeft = getMovesLeftInTurn(cpuPlayer);
 	if (movesLeft === 2) return null;
 	
-	const latestNode = getLatestNode();
-	if (!latestNode) return null;
+	const currentNode = moveHistoryTree.currentNode || getLatestNode();
+	if (!currentNode) return null;
 	
-	let node = latestNode;
+	let node = currentNode;
 	while (node) {
 		if (node.player === cpuPlayer) {
 			return { q: node.q, r: node.r };

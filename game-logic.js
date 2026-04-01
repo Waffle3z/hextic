@@ -24,7 +24,12 @@ function placeTile(q, r, addMoveCallback) {
 	// If viewing a historical position (not at latest), create a new branch
 	// Rebuild game state to that point first
 	if (moveHistoryTree.currentNode && moveHistoryTree.currentNode !== getLatestNode()) {
+		// Use rebuildGameState which properly handles tree structure
 		rebuildGameState(moveHistoryTree.currentNode);
+		// Reset turn state to match the current position in history
+		if (typeof resetTurnState === 'function') {
+			resetTurnState();
+		}
 	}
 	
 	// Place the tile at the specified axial coordinates
@@ -238,10 +243,13 @@ function rebuildGameState(targetNode) {
 	const moves = [];
 	let node = targetNode;
 	while (node) {
-		moves.unshift(node);
+		// Skip wrapper nodes (they have invalid coordinates)
+		if (!node.isTurnWrapper) {
+			moves.unshift(node);
+		}
 		node = node.parent;
 	}
-	
+
 	// Replay moves
 	gameState.moveCount = 0;
 	
@@ -250,6 +258,10 @@ function rebuildGameState(targetNode) {
 		gameState.tiles.set(getHexKey(move.q, move.r), move.player);
 		gameState.moveCount++;
 	}
+	
+	// After rebuilding, set the currentNode to the target node
+	// This ensures addMoveToHistory can check if we're at latest position
+	moveHistoryTree.currentNode = targetNode;
 	
 	// Ensure the target node's branchCount is set (for proper indentation)
 	if (targetNode) {
@@ -264,7 +276,7 @@ function rebuildGameState(targetNode) {
 		}
 		targetNode.branchCount = branchCount;
 	}
-	
+
 	// Determine game phase
 	if (gameState.moveCount === 0) {
 		gameState.gamePhase = 'initial';

@@ -276,12 +276,9 @@ function getTouchDistance(touches) {
 // Handle tile placement - called from mouse/touch handlers and CPU
 // skipAutoMove: if true, skip the checkAndAutoMove call (used when CPU makes multiple moves)
 function handleTilePlacement(q, r, skipAutoMove = false) {
-	const success = placeTile(q, r, () => {
-		renderMoveHistory();
-	});
+	const success = placeTile(q, r);
 	if (success) {
 		updateUI();
-		render();
 		// Always check for auto-move (enables CPU's second move in a turn)
 		// Unless skipAutoMove is true (CPU is making multiple moves in sequence)
 		if (!skipAutoMove) {

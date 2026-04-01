@@ -1,16 +1,5 @@
 // Move History Tree Management
 
-// Recursively search for a node with given coordinates in a subtree
-function findNodeInTree(node, q, r) {
-	if (!node) return null;
-	if (node.q === q && node.r === r) return node;
-	for (const child of node.children) {
-		const found = findNodeInTree(child, q, r);
-		if (found) return found;
-	}
-	return null;
-}
-
 // Add move to history tree
 function addMoveToHistory(q, r, player) {
 	// Check if the current node already has a child with this exact move (same position)
@@ -46,6 +35,7 @@ function addMoveToHistory(q, r, player) {
 		isWin: false,
 		winPlayer: null,
 		moveNum: gameState.moveCount,
+		turnNumber: getTurnNumberFromMoveNumber(gameState.moveCount),
 		branchCount: branchCount
 	};
 	
@@ -59,6 +49,7 @@ function addMoveToHistory(q, r, player) {
 	
 	// Move to the new node
 	moveHistoryTree.currentNode = moveNode;
+	moveHistoryTree.latestNode = moveNode;
 	
 	// Render the history
 	renderMoveHistory();
@@ -103,17 +94,10 @@ function goToNextMove() {
 	goToMove(moveHistoryTree.currentNode.children[0]);
 }
 
-// Clear move history
-function clearMoveHistory() {
-	moveHistoryTree.root = null;
-	moveHistoryTree.currentNode = null;
-}
-
 // Export to browser window
 if (typeof window !== 'undefined') {
 	window.addMoveToHistory = addMoveToHistory;
 	window.goToMove = goToMove;
 	window.goToPreviousMove = goToPreviousMove;
 	window.goToNextMove = goToNextMove;
-	window.clearMoveHistory = clearMoveHistory;
 }

@@ -1,7 +1,7 @@
 // Game State Management
 
 // DOM elements - accessed after DOM is loaded (scripts are at end of body)
-let canvas, ctx, playerIndicator, headerPlayer, headerPlayerContainer, moveHistory, restartBtn, prevBtn, nextBtn, coordsBtn, cpuBtn, threatsBtn, rulesToggle, autoMoveBtn, copyBtn, pasteBtn, menuBtn, hamburgerMenu;
+let canvas, ctx, playerIndicator, headerPlayer, moveHistory, restartBtn, prevBtn, nextBtn, coordsBtn, cpuBtn, threatsBtn, rulesToggle, autoMoveBtn, copyBtn, pasteBtn, menuBtn, hamburgerMenu;
 
 // Initialize DOM elements - should be called after DOM is ready
 function initDOMElements() {
@@ -9,7 +9,6 @@ function initDOMElements() {
 	ctx = canvas ? canvas.getContext('2d') : null;
 	playerIndicator = document.getElementById('player-indicator');
 	headerPlayer = document.getElementById('header-player');
-	headerPlayerContainer = document.querySelector('.header-player-container');
 	moveHistory = document.getElementById('move-history');
 	restartBtn = document.getElementById('restart-btn');
 	prevBtn = document.getElementById('prev-btn');
@@ -51,7 +50,8 @@ let hoverState = {
 // Each node: { q, r, player, parent, children: [], isWin: false, winPlayer: null }
 let moveHistoryTree = {
 	root: null,
-	currentNode: null
+	currentNode: null,
+	latestNode: null
 };
 
 // View state
@@ -87,6 +87,7 @@ function resetGameState() {
 	
 	moveHistoryTree.root = null;
 	moveHistoryTree.currentNode = null;
+	moveHistoryTree.latestNode = null;
 	
 	hoverState.hex = null;
 	hoverState.isHovering = false;
@@ -100,6 +101,11 @@ function resetGameState() {
 	viewState.touchStartY = null;
 	
 	autoMoveState.enabledPlayer = 0;
+	
+	// Reset turn state for move grouping
+	if (typeof resetTurnState === 'function') {
+		resetTurnState();
+	}
 }
 
 // Get hex key string
@@ -127,6 +133,26 @@ function getCurrentPlayer() {
 	return (mod === 0 || mod === 3) ? 1 : 2;
 }
 
+function getTurnNumberFromMoveNumber(moveNumber) {
+	if (!Number.isFinite(moveNumber) || moveNumber <= 0) {
+		return 0;
+	}
+
+	return Math.floor(moveNumber / 2) + 1;
+}
+
+function getTurnNumberForNode(node) {
+	if (!node) {
+		return 0;
+	}
+
+	if (typeof node.turnNumber === 'number') {
+		return node.turnNumber;
+	}
+
+	return getTurnNumberFromMoveNumber(node.moveNum);
+}
+
 // Check if at the latest position in history
 function isAtLatestPosition() {
 	if (!moveHistoryTree.currentNode) return true;
@@ -135,13 +161,25 @@ function isAtLatestPosition() {
 
 // Get the latest node in the history tree (for checking if at current position)
 function getLatestNode() {
-	if (!moveHistoryTree.currentNode) return null;
-	
-	let node = moveHistoryTree.currentNode;
-	while (node.children.length > 0) {
-		node = node.children[node.children.length - 1];
+	if (moveHistoryTree.latestNode) {
+		return moveHistoryTree.latestNode;
 	}
-	return node;
+
+	if (!moveHistoryTree.root) {
+		return null;
+	}
+
+	// Find the deepest node in the tree by traversing all paths
+	let latestNode = moveHistoryTree.root;
+	let stack = [moveHistoryTree.root];
+	while (stack.length > 0) {
+		const node = stack.pop();
+		latestNode = node;
+		for (let i = node.children.length - 1; i >= 0; i--) {
+			stack.push(node.children[i]);
+		}
+	}
+	return latestNode;
 }
 
 // Export to browser window
@@ -170,6 +208,8 @@ if (typeof window !== 'undefined') {
 	window.getHexKey = getHexKey;
 	window.isHexEmpty = isHexEmpty;
 	window.getCurrentPlayer = getCurrentPlayer;
+	window.getTurnNumberFromMoveNumber = getTurnNumberFromMoveNumber;
+	window.getTurnNumberForNode = getTurnNumberForNode;
 	window.isAtLatestPosition = isAtLatestPosition;
 	window.getLatestNode = getLatestNode;
 	window.initDOMElements = initDOMElements;

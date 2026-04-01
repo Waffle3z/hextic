@@ -1,8 +1,5 @@
 // UI Updates
 
-// Game initialization guard
-let gameInitialized = false;
-
 // Update UI elements
 function updateUI() {
 	if (!playerIndicator) return;
@@ -54,6 +51,139 @@ function updateNavigationButtons() {
 const nodeReferences = new Map();
 let nodeIdCounter = 0;
 
+function getHistoryTurnNumber(node) {
+	if (!node) {
+		return 0;
+	}
+
+	if (typeof getTurnNumberForNode === 'function') {
+		return getTurnNumberForNode(node);
+	}
+
+	if (typeof node.turnNumber === 'number') {
+		return node.turnNumber;
+	}
+
+	return 0;
+}
+
+function formatHistoryMove(node) {
+	if (!node || node.isTurnWrapper) {
+		return '';
+	}
+
+	let text = `(${node.q}, ${node.r})`;
+	if (node.isWin) {
+		text += '#';
+	}
+	if (node.isCheck) {
+		text += '+';
+	}
+
+	return text;
+}
+
+function appendHistoryRow(firstNode, secondNode, turnNum, branchDepth) {
+	if (!firstNode) {
+		return;
+	}
+
+	const targetNode = secondNode || firstNode;
+	const rowElement = document.createElement('div');
+	rowElement.className = branchDepth > 0 ? 'move-row branch-row' : 'move-row';
+	if (branchDepth > 0) {
+		rowElement.style.marginLeft = `${branchDepth * 30}px`;
+	}
+
+	const moveItem = document.createElement('div');
+	moveItem.className = `move-item player-${firstNode.player}-move`;
+	if (moveHistoryTree.currentNode === targetNode) {
+		moveItem.classList.add('current');
+	}
+
+	const decisiveNode = secondNode || firstNode;
+	if (decisiveNode.isWin) {
+		moveItem.classList.add(decisiveNode.winPlayer === 1 ? 'p1-wins' : 'p2-wins');
+	}
+
+	const nodeId = ++nodeIdCounter;
+	moveItem.dataset.nodeId = nodeId;
+	nodeReferences.set(nodeId, targetNode);
+
+	let displayText = formatHistoryMove(firstNode);
+	if (secondNode) {
+		displayText += ` ${formatHistoryMove(secondNode)}`;
+	}
+
+	moveItem.innerHTML = `
+		<span class="move-num">${turnNum}.</span>
+		<span class="move-text">${displayText}</span>
+	`;
+
+	rowElement.appendChild(moveItem);
+	moveHistory.appendChild(rowElement);
+}
+
+function getHistoryTurnVariants(anchorNode) {
+	if (!anchorNode) {
+		return [];
+	}
+
+	const anchorTurnNumber = getHistoryTurnNumber(anchorNode);
+	const firstMoveOptions = anchorNode.children.filter(
+		child => getHistoryTurnNumber(child) !== anchorTurnNumber
+	);
+	const variants = [];
+
+	for (const firstNode of firstMoveOptions) {
+		const turnNumber = getHistoryTurnNumber(firstNode);
+		const secondMoveOptions = firstNode.children.filter(
+			child => getHistoryTurnNumber(child) === turnNumber
+		);
+
+		if (secondMoveOptions.length === 0) {
+			variants.push({
+				firstNode: firstNode,
+				secondNode: null,
+				endNode: firstNode
+			});
+			continue;
+		}
+
+		for (const secondNode of secondMoveOptions) {
+			variants.push({
+				firstNode: firstNode,
+				secondNode: secondNode,
+				endNode: secondNode
+			});
+		}
+	}
+
+	return variants;
+}
+
+function renderHistoryTurnVariant(variant, turnNum, branchDepth) {
+	if (!variant) {
+		return;
+	}
+
+	appendHistoryRow(variant.firstNode, variant.secondNode, turnNum, branchDepth);
+	renderHistoryContinuation(variant.endNode, turnNum + 1, branchDepth);
+}
+
+function renderHistoryContinuation(anchorNode, turnNum, branchDepth) {
+	const variants = getHistoryTurnVariants(anchorNode);
+	if (variants.length === 0) {
+		return;
+	}
+
+	for (let i = 1; i < variants.length; i++) {
+		renderHistoryTurnVariant(variants[i], turnNum, branchDepth + 1);
+	}
+
+	renderHistoryTurnVariant(variants[0], turnNum, branchDepth);
+}
+
 // Render the move history with branching support
 function renderMoveHistory() {
 	moveHistory.innerHTML = '';
@@ -61,10 +191,17 @@ function renderMoveHistory() {
 	nodeIdCounter = 0;
 	
 	if (!moveHistoryTree.root) return;
-	
-	// Build a list of all paths to render
-	// We'll render from root to current, marking branches
-	renderMoveNode(moveHistoryTree.root, 0, []);
+
+	const root = moveHistoryTree.root;
+	if (root.isTurnWrapper) {
+		if (root.children[0]) {
+			appendHistoryRow(root.children[0], null, 1, 0);
+			renderHistoryContinuation(root.children[0], 2, 0);
+		}
+	} else {
+		appendHistoryRow(root, null, 1, 0);
+		renderHistoryContinuation(root, 2, 0);
+	}
 	
 	// Update navigation button states
 	updateNavigationButtons();
@@ -76,85 +213,16 @@ function renderMoveHistory() {
 	}
 }
 
-// Recursively render move nodes
-function renderMoveNode(node, depth, pathIndices) {
-	if (!node) return;
-	
-	const isCurrent = node === moveHistoryTree.currentNode;
-	const hasBranches = node.children.length > 1;
-	
-	// Assign unique ID for event delegation
-	const nodeId = ++nodeIdCounter;
-	nodeReferences.set(nodeId, node);
-	
-	// For PGN-style ordering: render branches BEFORE the main line
-	// Only render children that are branches (children[0] is the main line continuation)
-	// Children at index > 0 are branches that should appear before the main move
-	const branchChildren = node.children.slice(1); // All children except first (main line)
-	const mainChild = node.children[0]; // First child is the main line continuation
-	
-	// Render the main line move first
-	// Create the move item
-	const moveItem = document.createElement('div');
-	moveItem.className = `move-item player-${node.player}-move`;
-	moveItem.dataset.nodeId = nodeId;
-	if (isCurrent) {
-		moveItem.classList.add('current');
-	}
-	
-	// Build display text
-	let displayText = `(${node.q}, ${node.r})`;
-	if (node.isWin) {
-		displayText += `#`;
-		// Add winner color class
-		moveItem.classList.add(node.winPlayer === 1 ? 'p1-wins' : 'p2-wins');
-	}
-	if (node.isCheck) {
-		displayText += `+`;
-	}
-	
-	moveItem.innerHTML = `
-		<span class="move-num">${node.moveNum}.</span>
-		<span class="move-text">${displayText}</span>
-	`;
-	
-	// Add indent based on tree DEPTH - main line has no indent, branches are indented
-	// The depth parameter represents how many levels deep we are in the tree
-	// Only indent if we're not at the root level (depth > 0 means we're not the first move)
-	// A node is on the main line only if ALL elements in pathIndices are 0
-	// If ANY element > 0, it's part of a branch and should be indented
-	const isOnMainLine = pathIndices.every(index => index === 0);
-	const isBranch = !isOnMainLine;
-	if (depth > 0 && isBranch) {
-		// Count how many branch levels deep we are (number of indices > 0 in the path)
-		const branchDepth = pathIndices.filter(index => index > 0).length;
-		// Indent based on branch depth, but cap it to avoid excessive indentation
-		const indentLevel = Math.min(branchDepth, 10);
-		moveItem.style.paddingLeft = `${indentLevel * 20 + 6}px`;
-	}
-	
-	moveHistory.appendChild(moveItem);
-	
-	// Then render branches AFTER the main line move (they appear indented under it)
-	branchChildren.forEach((child, index) => {
-		renderMoveNode(child, depth + 1, [...pathIndices, index + 1]);
-	});
-	
-	// Finally render main line child
-	if (mainChild) {
-		renderMoveNode(mainChild, depth + 1, [...pathIndices, 0]);
-	}
-}
-
 // Handle move history clicks via event delegation (avoids memory leak)
 function setupMoveHistoryDelegation() {
 	moveHistory.addEventListener('click', (e) => {
 		const moveItem = e.target.closest('.move-item');
 		if (moveItem && moveItem.dataset.nodeId) {
 			const nodeId = parseInt(moveItem.dataset.nodeId, 10);
-			const node = nodeReferences.get(nodeId);
-			if (node) {
-				goToMove(node);
+			const targetNode = nodeReferences.get(nodeId);
+			if (targetNode) {
+				// Navigate to the target node
+				goToMove(targetNode);
 				updateUI();
 				render();
 				renderMoveHistory();
@@ -234,13 +302,9 @@ function setupRulesToggle() {
 	}
 }
 
-// Auto-initialize when script loads (with guard to prevent duplicate initialization)
+// Auto-initialize when script loads
 if (typeof document !== 'undefined') {
-	// Check if already initialized by looking for the canvas
-	if (!gameInitialized) {
-		gameInitialized = true;
-		init();
-	}
+	init();
 }
 
 // Export to browser window
