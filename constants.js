@@ -21,7 +21,8 @@ const COLORS = {
 	highlight: '#f1c40f', // Highlight color for first move and hover
 	highlightGlow: 'rgba(241, 196, 15, 0.4)',
 	threat: '#e74c3c',	 // Threat warning color
-	threatGlow: 'rgba(231, 76, 60, 0.4)'
+	threatGlow: 'rgba(231, 76, 60, 0.4)',
+	turnHighlight: '#dddddd', // Turn highlight color
 };
 
 // Hex direction vectors in axial coordinates

@@ -17,9 +17,15 @@ function render() {
 	// Get threat hexes if enabled
 	const threatHexes = viewState.showThreats ? getThreatHexes() : new Set();
 	
+	// Get turn highlight hexes (moves in currently selected turn)
+	let turnHighlightHexes = new Set();
+	if (moveHistoryTree.currentNode && moveHistoryTree.currentNode.turnNumber) {
+		turnHighlightHexes = getTurnHighlightHexes(moveHistoryTree.currentNode.turnNumber);
+	}
+	
 	// Draw hexes
 	for (const hex of hexesToRender) {
-		drawHex(hex.q, hex.r, threatHexes);
+		drawHex(hex.q, hex.r, threatHexes, turnHighlightHexes);
 	}
 	
 	// Draw winning line if game is over
@@ -79,12 +85,20 @@ function getHexesToRender() {
 }
 
 // Draw a single hex
-function drawHex(q, r, threatHexes) {
+function drawHex(q, r, threatHexes, turnHighlightHexes) {
 	// Handle case where threatHexes is not passed or is not a Map
 	// getHexesToRender passes a Set when showThreats is false, but we need a Map
 	if (!threatHexes || !(threatHexes instanceof Map)) {
 		threatHexes = new Map();
 	}
+	
+	// Handle turnHighlightHexes - default to empty set if not provided
+	if (!turnHighlightHexes) {
+		turnHighlightHexes = new Set();
+	}
+	
+	const hexKey = getHexKey(q, r);
+	const isTurnHighlight = turnHighlightHexes.has(hexKey);
 	
 	const pos = hexToPixel(q, r, viewState.zoom);
 	const x = pos.x + viewState.offsetX;
@@ -215,6 +229,25 @@ function drawHex(q, r, threatHexes) {
 		// Apply stroke
 		ctx.strokeStyle = strokeStyle;
 		ctx.lineWidth = lineWidth;
+		ctx.stroke();
+	}
+	
+	// Draw turn highlight outline (for moves in currently selected turn)
+	if (isTurnHighlight) {
+		ctx.beginPath();
+		for (let i = 0; i < 6; i++) {
+			const angle = Math.PI / 3 * i - Math.PI / 2;
+			const hx = x + size * Math.cos(angle);
+			const hy = y + size * Math.sin(angle);
+			if (i === 0) {
+				ctx.moveTo(hx, hy);
+			} else {
+				ctx.lineTo(hx, hy);
+			}
+		}
+		ctx.closePath();
+		ctx.strokeStyle = COLORS.turnHighlight;
+		ctx.lineWidth = Math.ceil(size / 16.0);
 		ctx.stroke();
 	}
 	

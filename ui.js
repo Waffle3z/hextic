@@ -50,6 +50,7 @@ function updateNavigationButtons() {
 // Store node references for event delegation
 const nodeReferences = new Map();
 let nodeIdCounter = 0;
+const firstMoveBestDepth = new Map();
 
 function getHistoryTurnNumber(node) {
 	if (!node) {
@@ -97,8 +98,18 @@ function appendHistoryRow(firstNode, secondNode, turnNum, branchDepth) {
 
 	const moveItem = document.createElement('div');
 	moveItem.className = `move-item player-${firstNode.player}-move`;
-	if (moveHistoryTree.currentNode === targetNode) {
+	const currentNode = moveHistoryTree.currentNode;
+	const isExactMatch = currentNode === targetNode;
+	const isFirstOfThisTurn = currentNode === firstNode && targetNode && targetNode.turnNumber === firstNode.turnNumber;
+	const isExactOrFirstMatch = isExactMatch || isFirstOfThisTurn;
+	const bestData = firstMoveBestDepth.get(firstNode);
+	const shouldHighlight = isExactOrFirstMatch && (!bestData || branchDepth < bestData.depth);
+	if (shouldHighlight) {
+		if (bestData) {
+			bestData.element.classList.remove('current');
+		}
 		moveItem.classList.add('current');
+		firstMoveBestDepth.set(firstNode, { element: moveItem, depth: branchDepth });
 	}
 
 	const decisiveNode = secondNode || firstNode;
@@ -189,6 +200,7 @@ function renderMoveHistory() {
 	moveHistory.innerHTML = '';
 	nodeReferences.clear();
 	nodeIdCounter = 0;
+	firstMoveBestDepth.clear();
 	
 	if (!moveHistoryTree.root) return;
 

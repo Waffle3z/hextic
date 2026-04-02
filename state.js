@@ -66,7 +66,7 @@ let viewState = {
 	offsetStartY: 0,
 	touchStartX: null,
 	touchStartY: null,
-	showCoordinates: true,
+	showCoordinates: false,
 	showThreats: true // Enabled by default
 };
 

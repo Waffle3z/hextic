@@ -71,6 +71,51 @@ function goToMove(targetNode) {
 	renderMoveHistory();
 }
 
+// Get all moves for a given turn number from the current path in history
+// This traverses from root to currentNode to find moves only in the current branch
+function getMovesForTurn(turnNumber) {
+	const moves = [];
+	
+	if (!moveHistoryTree.root || turnNumber <= 0) {
+		return moves;
+	}
+	
+	// If currentNode is not set, can't determine the current path
+	if (!moveHistoryTree.currentNode) {
+		return moves;
+	}
+	
+	// Traverse from currentNode back to root, collecting nodes with the same turn number
+	let node = moveHistoryTree.currentNode;
+	const nodesOnPath = [];
+	
+	while (node) {
+		nodesOnPath.push(node);
+		node = node.parent;
+	}
+	
+	// Now filter to only nodes with the given turn number
+	for (const n of nodesOnPath) {
+		if (n.turnNumber === turnNumber) {
+			moves.push(n);
+		}
+	}
+	
+	return moves;
+}
+
+// Get the hex keys for all moves in a given turn (current branch only)
+function getTurnHighlightHexes(turnNumber) {
+	const hexKeys = new Set();
+	const moves = getMovesForTurn(turnNumber);
+	
+	for (const move of moves) {
+		hexKeys.add(getHexKey(move.q, move.r));
+	}
+	
+	return hexKeys;
+}
+
 // Go to previous move
 function goToPreviousMove() {
 	if (!moveHistoryTree.currentNode || !moveHistoryTree.currentNode.parent) {
@@ -100,4 +145,6 @@ if (typeof window !== 'undefined') {
 	window.goToMove = goToMove;
 	window.goToPreviousMove = goToPreviousMove;
 	window.goToNextMove = goToNextMove;
+	window.getMovesForTurn = getMovesForTurn;
+	window.getTurnHighlightHexes = getTurnHighlightHexes;
 }
