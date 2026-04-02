@@ -51,6 +51,7 @@ function updateNavigationButtons() {
 const nodeReferences = new Map();
 let nodeIdCounter = 0;
 const firstMoveBestDepth = new Map();
+const HISTORY_BRANCH_INDENT = 30;
 
 function getHistoryTurnNumber(node) {
 	if (!node) {
@@ -84,16 +85,79 @@ function formatHistoryMove(node) {
 	return text;
 }
 
-function appendHistoryRow(firstNode, secondNode, turnNum, branchDepth) {
-	if (!firstNode) {
+function createHistoryRowData(firstNode, secondNode, turnNum, branchDepth, isBranchEntry = false) {
+	return {
+		firstNode: firstNode,
+		secondNode: secondNode,
+		endNode: secondNode || firstNode,
+		turnNum: turnNum,
+		branchDepth: branchDepth,
+		branchEntryDepth: isBranchEntry ? branchDepth - 1 : null,
+		connectorSegments: []
+	};
+}
+
+function addHistoryConnectorData(rows, branchGroups) {
+	for (const group of branchGroups) {
+		if (!group || group.childRowIndices.length === 0) {
+			continue;
+		}
+
+		const firstChildRowIndex = group.childRowIndices[0];
+		const lastChildRowIndex = group.childRowIndices[group.childRowIndices.length - 1];
+
+		for (let rowIndex = firstChildRowIndex; rowIndex <= lastChildRowIndex; rowIndex++) {
+			const row = rows[rowIndex];
+			if (!row) {
+				continue;
+			}
+
+			row.connectorSegments.push({
+				depth: group.depth,
+				type: rowIndex === lastChildRowIndex ? 'top' : 'full'
+			});
+		}
+	}
+
+	for (const row of rows) {
+		row.connectorSegments.sort((left, right) => left.depth - right.depth);
+	}
+}
+
+function appendHistoryRow(rowData) {
+	if (!rowData || !rowData.firstNode) {
 		return;
 	}
 
-	const targetNode = secondNode || firstNode;
+	const firstNode = rowData.firstNode;
+	const secondNode = rowData.secondNode;
+	const targetNode = rowData.endNode;
+	const turnNum = rowData.turnNum;
+	const branchDepth = rowData.branchDepth;
 	const rowElement = document.createElement('div');
 	rowElement.className = branchDepth > 0 ? 'move-row branch-row' : 'move-row';
-	if (branchDepth > 0) {
-		rowElement.style.marginLeft = `${branchDepth * 30}px`;
+	rowElement.style.paddingLeft = `${branchDepth * HISTORY_BRANCH_INDENT}px`;
+
+	if (rowData.connectorSegments.length > 0 || Number.isInteger(rowData.branchEntryDepth)) {
+		const connectorLayer = document.createElement('div');
+		connectorLayer.className = 'history-connectors';
+
+		for (const segment of rowData.connectorSegments) {
+			const verticalLine = document.createElement('span');
+			verticalLine.className = `history-connector vertical ${segment.type}`;
+			verticalLine.style.left = `${(segment.depth * HISTORY_BRANCH_INDENT) + (HISTORY_BRANCH_INDENT / 2)}px`;
+			connectorLayer.appendChild(verticalLine);
+		}
+
+		if (Number.isInteger(rowData.branchEntryDepth)) {
+			const horizontalLine = document.createElement('span');
+			horizontalLine.className = 'history-connector horizontal';
+			horizontalLine.style.left = `${(rowData.branchEntryDepth * HISTORY_BRANCH_INDENT) + (HISTORY_BRANCH_INDENT / 2)}px`;
+			horizontalLine.style.width = `${HISTORY_BRANCH_INDENT / 2}px`;
+			connectorLayer.appendChild(horizontalLine);
+		}
+
+		rowElement.appendChild(connectorLayer);
 	}
 
 	const moveItem = document.createElement('div');
@@ -173,26 +237,77 @@ function getHistoryTurnVariants(anchorNode) {
 	return variants;
 }
 
-function renderHistoryTurnVariant(variant, turnNum, branchDepth) {
+function collectHistoryTurnVariant(variant, turnNum, branchDepth, rows, branchGroups, isBranchEntry = false) {
 	if (!variant) {
-		return;
+		return -1;
 	}
 
-	appendHistoryRow(variant.firstNode, variant.secondNode, turnNum, branchDepth);
-	renderHistoryContinuation(variant.endNode, turnNum + 1, branchDepth);
+	const row = createHistoryRowData(
+		variant.firstNode,
+		variant.secondNode,
+		turnNum,
+		branchDepth,
+		isBranchEntry
+	);
+	const rowIndex = rows.length;
+	rows.push(row);
+	collectHistoryContinuation(variant.endNode, turnNum + 1, branchDepth, rows, branchGroups);
+	return rowIndex;
 }
 
-function renderHistoryContinuation(anchorNode, turnNum, branchDepth) {
+function collectHistoryContinuation(anchorNode, turnNum, branchDepth, rows, branchGroups) {
 	const variants = getHistoryTurnVariants(anchorNode);
 	if (variants.length === 0) {
 		return;
 	}
 
+	const branchEntryRowIndices = [];
 	for (let i = 1; i < variants.length; i++) {
-		renderHistoryTurnVariant(variants[i], turnNum, branchDepth + 1);
+		const branchRowIndex = collectHistoryTurnVariant(
+			variants[i],
+			turnNum,
+			branchDepth + 1,
+			rows,
+			branchGroups,
+			true
+		);
+		if (branchRowIndex >= 0) {
+			branchEntryRowIndices.push(branchRowIndex);
+		}
 	}
 
-	renderHistoryTurnVariant(variants[0], turnNum, branchDepth);
+	if (branchEntryRowIndices.length > 0) {
+		branchGroups.push({
+			depth: branchDepth,
+			childRowIndices: branchEntryRowIndices
+		});
+	}
+
+	collectHistoryTurnVariant(variants[0], turnNum, branchDepth, rows, branchGroups);
+}
+
+function buildHistoryRows() {
+	const rows = [];
+	const branchGroups = [];
+	if (!moveHistoryTree.root) {
+		return rows;
+	}
+
+	const root = moveHistoryTree.root;
+	if (root.isTurnWrapper) {
+		if (!root.children[0]) {
+			return rows;
+		}
+
+		rows.push(createHistoryRowData(root.children[0], null, 1, 0));
+		collectHistoryContinuation(root.children[0], 2, 0, rows, branchGroups);
+	} else {
+		rows.push(createHistoryRowData(root, null, 1, 0));
+		collectHistoryContinuation(root, 2, 0, rows, branchGroups);
+	}
+
+	addHistoryConnectorData(rows, branchGroups);
+	return rows;
 }
 
 // Render the move history with branching support
@@ -204,15 +319,9 @@ function renderMoveHistory() {
 	
 	if (!moveHistoryTree.root) return;
 
-	const root = moveHistoryTree.root;
-	if (root.isTurnWrapper) {
-		if (root.children[0]) {
-			appendHistoryRow(root.children[0], null, 1, 0);
-			renderHistoryContinuation(root.children[0], 2, 0);
-		}
-	} else {
-		appendHistoryRow(root, null, 1, 0);
-		renderHistoryContinuation(root, 2, 0);
+	const historyRows = buildHistoryRows();
+	for (const row of historyRows) {
+		appendHistoryRow(row);
 	}
 	
 	// Update navigation button states
