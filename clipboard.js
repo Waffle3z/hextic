@@ -1,7 +1,6 @@
 // Game Tree Clipboard Import/Export
 // Uses pairing functions to serialize hex coordinates as natural numbers
 
-// Serialize the game tree to nested array format
 function serializeGameTree() {
 	if (!moveHistoryTree.root) {
 		return null;
@@ -10,23 +9,21 @@ function serializeGameTree() {
 	function serializeNode(node) {
 		if (!node) return null;
 		
-		const packedCoord = hexToNat(node.q, node.r);
+		const turnCoord = hexToNat(node.q, node.r);
+		let result = [turnCoord];
 		
-		if (node.children.length === 0) {
-			return packedCoord;
-		}
-		
-		if (node.children.length === 1) {
-			const childResult = serializeNode(node.children[0]);
-			if (typeof childResult === 'number') {
-				return [packedCoord, childResult];
+		if (node.children.length > 0) {
+			const mainChild = node.children[0];
+			const childResult = serializeNode(mainChild);
+			
+			if (node.children.length === 1 && childResult) {
+				result.push(...childResult);
+			} else {
+				for (const child of node.children) {
+					const serialized = serializeNode(child);
+					if (serialized) result.push(serialized);
+				}
 			}
-			return [packedCoord, ...childResult];
-		}
-		
-		const result = [packedCoord];
-		for (const child of node.children) {
-			result.push(serializeNode(child));
 		}
 		
 		return result;
@@ -34,33 +31,19 @@ function serializeGameTree() {
 	
 	const serialized = serializeNode(moveHistoryTree.root);
 	
-	// Find the position of current focus in the serialized format
 	let focusIndex = -1;
-	let currentIndex = 0;
-	
-	function findSerializedPosition(node, target) {
-		if (!node) return -1;
-		
-		if (node === target) {
-			return currentIndex;
-		}
-		currentIndex++;
-		
-		for (const child of node.children) {
-			const result = findSerializedPosition(child, target);
-			if (result >= 0) return result;
-		}
-		return -1;
-	}
-	
 	if (moveHistoryTree.currentNode) {
-		currentIndex = 0;
-		focusIndex = findSerializedPosition(moveHistoryTree.root, moveHistoryTree.currentNode);
+		const positions = [];
+		function traverse(node) {
+			if (!node) return;
+			positions.push(node);
+			node.children.forEach(traverse);
+		}
+		traverse(moveHistoryTree.root);
+		focusIndex = positions.indexOf(moveHistoryTree.currentNode);
 	}
 	
-	// Build the output string
 	let output = JSON.stringify(serialized);
-	
 	if (focusIndex >= 0) {
 		output += ';' + focusIndex;
 	}
@@ -95,7 +78,6 @@ function deserializeGameTree(text) {
 	return { data: data, focusIndex: focusIndex };
 }
 
-// Rebuild the game tree from nested array format
 function rebuildGameTreeFromSerialized(data, focusIndex = -1) {
 	if (!data || !Array.isArray(data)) {
 		return false;
@@ -106,37 +88,19 @@ function rebuildGameTreeFromSerialized(data, focusIndex = -1) {
 	const savedZoom = viewState.zoom;
 	
 	resetGameState();
+	processSerializedArray(data);
 	
-	const nodeStack = [];
-	processSerializedArray(data, nodeStack);
-	
-	// Find target node based on focus index in serialized format
 	let targetNode = null;
-	
 	if (focusIndex >= 0) {
-		// Find node at the specified position in serialized format
-		let currentIndex = 0;
-		
-		function findNodeAtPosition(node, targetPos) {
-			if (!node) return null;
-			
-			if (currentIndex === targetPos) {
-				return node;
-			}
-			currentIndex++;
-			
-			for (const child of node.children) {
-				const result = findNodeAtPosition(child, targetPos);
-				if (result) return result;
-			}
-			return null;
+		const positions = [];
+		function traverse(node) {
+			if (!node) return;
+			positions.push(node);
+			node.children.forEach(traverse);
 		}
-		
-		currentIndex = 0;
-		targetNode = findNodeAtPosition(moveHistoryTree.root, focusIndex);
+		traverse(moveHistoryTree.root);
+		targetNode = positions[focusIndex] || null;
 	}
-	
-
 	
 	if (targetNode) {
 		goToMove(targetNode);
@@ -149,7 +113,7 @@ function rebuildGameTreeFromSerialized(data, focusIndex = -1) {
 	return true;
 }
 
-function processSerializedArray(arr, nodeStack) {
+function processSerializedArray(arr) {
 	if (!arr || !Array.isArray(arr)) return;
 	
 	for (const item of arr) {
@@ -157,9 +121,9 @@ function processSerializedArray(arr, nodeStack) {
 			const coords = natToHex(item);
 			placeTile(coords.q, coords.r);
 		} else if (Array.isArray(item)) {
-			nodeStack.push(moveHistoryTree.currentNode);
-			processSerializedArray(item, nodeStack);
-			goToMove(nodeStack.pop());
+			const saved = moveHistoryTree.currentNode;
+			processSerializedArray(item);
+			moveHistoryTree.currentNode = saved;
 		}
 	}
 }

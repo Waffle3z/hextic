@@ -59,6 +59,12 @@ function addMoveToHistory(q, r, player) {
 
 // Navigate to a specific move
 function goToMove(targetNode) {
+	// Disable auto-move when navigating history
+	if (autoMoveState && autoMoveState.enabledPlayer !== 0) {
+		autoMoveState.enabledPlayer = 0;
+		updateAutoMoveButton();
+	}
+	
 	// Rebuild game state from root to target node
 	rebuildGameState(targetNode);
 	

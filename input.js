@@ -411,9 +411,7 @@ function updateAutoMoveButton() {
 function checkAndAutoMove() {
 	if (autoMoveState.enabledPlayer !== 0 && 
 		autoMoveState.enabledPlayer === getCurrentPlayer() &&
-		gameState.gamePhase !== 'gameOver' &&
-		isAtLatestPosition()) {
-		// Use setTimeout to allow UI to update first
+		gameState.gamePhase !== 'gameOver') {
 		setTimeout(() => {
 			handleCPUMove();
 		}, 100);
